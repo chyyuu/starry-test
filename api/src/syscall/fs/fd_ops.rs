@@ -15,7 +15,7 @@ use starry_core::{task::AsThread, vfs::Device};
 
 use crate::{
     file::{
-        Directory, FD_TABLE, File, FileLike, Pipe, add_file_like, close_file_like, get_file_like,
+        Directory, FD_TABLE, File, FileLike, add_file_like, close_file_like, get_file_like,
         with_fs,
     },
     mm::{UserPtr, vm_load_string},
@@ -154,15 +154,6 @@ pub fn sys_fcntl(fd: c_int, cmd: c_int, arg: usize) -> AxResult<isize> {
                 .get_mut(fd as _)
                 .ok_or(AxError::BadFileDescriptor)?
                 .cloexec = cloexec;
-            Ok(0)
-        }
-        F_GETPIPE_SZ => {
-            let pipe = Pipe::from_fd(fd)?;
-            Ok(pipe.capacity() as _)
-        }
-        F_SETPIPE_SZ => {
-            let pipe = Pipe::from_fd(fd)?;
-            pipe.resize(arg)?;
             Ok(0)
         }
         _ => {

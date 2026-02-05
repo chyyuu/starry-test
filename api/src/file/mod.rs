@@ -1,6 +1,5 @@
 // Minimal file types for ch18_file0
 mod fs;
-mod pipe;
 
 use alloc::{borrow::Cow, sync::Arc};
 use core::{ffi::c_int, time::Duration};
@@ -18,7 +17,6 @@ use starry_core::{resources::AX_FILE_LIMIT, task::AsThread};
 
 pub use self::{
     fs::{Directory, File, ResolveAtResult, metadata_to_kstat, resolve_at, with_fs},
-    pipe::Pipe,
 };
 
 #[derive(Debug, Clone, Copy)]
