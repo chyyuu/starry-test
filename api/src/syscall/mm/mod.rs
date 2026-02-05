@@ -1,5 +1,5 @@
+// Minimal mm syscalls for ch18_file0
 mod brk;
-mod mincore;
 mod mmap;
 
-pub use self::{brk::*, mincore::*, mmap::*};
+pub use self::{brk::*, mmap::*};

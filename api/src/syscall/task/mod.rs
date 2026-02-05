@@ -1,10 +1,5 @@
-mod clone;
-mod ctl;
-mod execve;
+// Minimal task syscalls for ch18_file0
 mod exit;
-mod job;
-mod schedule;
 mod thread;
-mod wait;
 
-pub use self::{clone::*, ctl::*, execve::*, exit::*, job::*, schedule::*, thread::*, wait::*};
+pub use self::{exit::*, thread::*};

@@ -1,4 +1,4 @@
+// Minimal sync syscalls for ch18_file0
 mod futex;
-mod membarrier;
 
-pub use self::{futex::*, membarrier::*};
+pub use self::futex::*;

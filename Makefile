@@ -5,14 +5,14 @@ export DWARF := y
 export MEMTRACK := n
 export INIT_CMDLINE ?=
 
-# QEMU Options
+# QEMU Options (Minimal for ch18_file0)
 export BLK := y
-export NET := y
+export NET := n
 export VSOCK := n
-export MEM := 1G
+export MEM := 128M
 export ICOUNT := n
 
-# Generated Options
+# Generated Options (Minimal for ch18_file0)
 export A := $(PWD)
 export NO_AXSTD := y
 export AX_LIB := axfeat
@@ -38,6 +38,21 @@ rootfs:
 img:
 	@echo -e "\033[33mWARN: The 'img' target is deprecated. Please use 'rootfs' instead.\033[0m"
 	@$(MAKE) --no-print-directory rootfs
+
+minimal-rootfs:
+	@echo "Building minimal rootfs for ch18_file0..."
+	@mkdir -p minimal_fs/dev
+	@if [ -f linux-app/ch18_file0 ]; then \
+		cp linux-app/ch18_file0 minimal_fs/; \
+		chmod +x minimal_fs/ch18_file0; \
+	else \
+		echo "Error: linux-app/ch18_file0 not found"; \
+		exit 1; \
+	fi
+	@echo "Creating 8MB ext4 filesystem..."
+	@mkfs.ext4 -d minimal_fs -F arceos/disk.img 8M
+	@rm -rf minimal_fs
+	@echo "Minimal rootfs created at arceos/disk.img"
 
 defconfig justrun clean:
 	@make -C arceos $@
