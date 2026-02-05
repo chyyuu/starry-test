@@ -1,9 +1,6 @@
-pub mod event;
+// Minimal file types for ch18_file0
 mod fs;
-mod net;
-mod pidfd;
 mod pipe;
-pub mod signalfd;
 
 use alloc::{borrow::Cow, sync::Arc};
 use core::{ffi::c_int, time::Duration};
@@ -22,8 +19,6 @@ use starry_core::{resources::AX_FILE_LIMIT, task::AsThread};
 
 pub use self::{
     fs::{Directory, File, ResolveAtResult, metadata_to_kstat, resolve_at, with_fs},
-    net::Socket,
-    pidfd::PidFd,
     pipe::Pipe,
 };
 

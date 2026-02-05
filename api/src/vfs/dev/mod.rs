@@ -1,12 +1,7 @@
 //! Special devices
 
-mod fb;
 #[cfg(feature = "dev-log")]
 mod log;
-mod r#loop;
-#[cfg(feature = "memtrack")]
-mod memtrack;
-mod rtc;
 pub mod tty;
 
 use alloc::{format, sync::Arc};
@@ -186,26 +181,7 @@ fn builder(fs: Arc<SimpleFs>) -> DirMaker {
             Arc::new(Random::new()),
         ),
     );
-    root.add(
-        "rtc0",
-        Device::new(
-            fs.clone(),
-            NodeType::CharacterDevice,
-            rtc::RTC0_DEVICE_ID,
-            Arc::new(rtc::Rtc),
-        ),
-    );
-    if axdisplay::has_display() {
-        root.add(
-            "fb0",
-            Device::new(
-                fs.clone(),
-                NodeType::CharacterDevice,
-                DeviceId::new(29, 0),
-                Arc::new(fb::FrameBuffer::new()),
-            ),
-        );
-    }
+    // rtc0 and fb0 removed for minimal OS
 
     root.add(
         "tty",
@@ -246,15 +222,7 @@ fn builder(fs: Arc<SimpleFs>) -> DirMaker {
     );
 
     #[cfg(feature = "memtrack")]
-    root.add(
-        "memtrack",
-        Device::new(
-            fs.clone(),
-            NodeType::CharacterDevice,
-            DeviceId::new(114, 514),
-            Arc::new(memtrack::MemTrack),
-        ),
-    );
+    // memtrack removed for minimal OS
 
     root.add(
         "cpu_dma_latency",
@@ -272,19 +240,7 @@ fn builder(fs: Arc<SimpleFs>) -> DirMaker {
         SimpleDir::new_maker(fs.clone(), Arc::new(DirMapping::new())),
     );
 
-    // Loop devices
-    for i in 0..16 {
-        let dev_id = DeviceId::new(7, 0);
-        root.add(
-            format!("loop{i}"),
-            Device::new(
-                fs.clone(),
-                NodeType::BlockDevice,
-                dev_id,
-                Arc::new(r#loop::LoopDevice::new(i, dev_id)),
-            ),
-        );
-    }
+    // Loop devices removed for minimal OS
 
     // Input devices removed for minimal OS
     // #[cfg(feature = "input")]
