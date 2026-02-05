@@ -4,7 +4,6 @@
 use alloc::{format, string::ToString, sync::Arc};
 use core::{
     ffi::{c_char, c_int},
-    ops::{Deref, DerefMut},
 };
 
 use axerrno::{AxError, AxResult};
@@ -21,7 +20,6 @@ use crate::{
     },
     mm::{UserPtr, vm_load_string},
     syscall::sys::{sys_getegid, sys_geteuid},
-    vfs::dev::tty,
 };
 
 /// Convert open flags to [`OpenOptions`].
@@ -63,42 +61,8 @@ fn flags_to_options(flags: c_int, mode: __kernel_mode_t, (uid, gid): (u32, u32))
 
 fn add_to_fd(result: OpenResult, flags: u32) -> AxResult<i32> {
     let f: Arc<dyn FileLike> = match result {
-        OpenResult::File(mut file) => {
-            // /dev/xx handling
-            if let Ok(device) = file.location().entry().downcast::<Device>() {
-                let inner = device.inner().as_any();
-                if let Some(ptmx) = inner.downcast_ref::<tty::Ptmx>() {
-                    // Opening /dev/ptmx creates a new pseudo-terminal
-                    let (master, pty_number) = ptmx.create_pty()?;
-                    // TODO: this is cursed
-                    let pts = FS_CONTEXT.lock().resolve("/dev/pts")?;
-                    let entry = DirEntry::new_file(
-                        FileNode::new(master),
-                        NodeType::CharacterDevice,
-                        Reference::new(Some(pts.entry().clone()), pty_number.to_string()),
-                    );
-                    let loc = Location::new(file.location().mountpoint().clone(), entry);
-                    file = axfs::File::new(FileBackend::Direct(loc), file.flags());
-                } else if inner.is::<tty::CurrentTty>() {
-                    let term = current()
-                        .as_thread()
-                        .proc_data
-                        .proc
-                        .group()
-                        .session()
-                        .terminal()
-                        .ok_or(AxError::NotFound)?;
-                    let path = if term.is::<tty::NTtyDriver>() {
-                        "/dev/console".to_string()
-                    } else if let Some(pts) = term.downcast_ref::<tty::PtyDriver>() {
-                        format!("/dev/pts/{}", pts.pty_number())
-                    } else {
-                        panic!("unknown terminal type")
-                    };
-                    let loc = FS_CONTEXT.lock().resolve(&path)?;
-                    file = axfs::File::new(FileBackend::Direct(loc), file.flags());
-                }
-            }
+        OpenResult::File(file) => {
+            // TTY devices removed for minimal OS
             Arc::new(File::new(file))
         }
         OpenResult::Dir(dir) => Arc::new(Directory::new(dir)),

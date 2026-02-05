@@ -2,7 +2,6 @@
 
 #[cfg(feature = "dev-log")]
 mod log;
-pub mod tty;
 
 use alloc::{format, sync::Arc};
 use core::any::Any;
@@ -183,38 +182,7 @@ fn builder(fs: Arc<SimpleFs>) -> DirMaker {
     );
     // rtc0 and fb0 removed for minimal OS
 
-    root.add(
-        "tty",
-        Device::new(
-            fs.clone(),
-            NodeType::CharacterDevice,
-            DeviceId::new(5, 0),
-            Arc::new(tty::CurrentTty),
-        ),
-    );
-    root.add(
-        "console",
-        Device::new(
-            fs.clone(),
-            NodeType::CharacterDevice,
-            DeviceId::new(5, 1),
-            tty::N_TTY.clone(),
-        ),
-    );
-
-    root.add(
-        "ptmx",
-        Device::new(
-            fs.clone(),
-            NodeType::CharacterDevice,
-            DeviceId::new(5, 2),
-            Arc::new(tty::Ptmx(fs.clone())),
-        ),
-    );
-    root.add(
-        "pts",
-        SimpleDir::new_maker(fs.clone(), Arc::new(tty::PtsDir)),
-    );
+    // TTY devices removed for minimal OS (using StdoutConsole instead)
     #[cfg(feature = "dev-log")]
     root.add(
         "log",

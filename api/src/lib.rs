@@ -10,12 +10,10 @@ extern crate axlog;
 extern crate alloc;
 
 pub mod file;
-pub mod io;
 pub mod mm;
 pub mod signal;
 pub mod syscall;
 pub mod task;
-pub mod terminal;
 pub mod time;
 pub mod vfs;
 
