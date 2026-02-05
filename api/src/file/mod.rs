@@ -1,4 +1,3 @@
-pub mod epoll;
 pub mod event;
 mod fs;
 mod net;

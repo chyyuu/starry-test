@@ -1,7 +1,5 @@
 //! Special devices
 
-#[cfg(feature = "input")]
-mod event;
 mod fb;
 #[cfg(feature = "dev-log")]
 mod log;
@@ -288,12 +286,12 @@ fn builder(fs: Arc<SimpleFs>) -> DirMaker {
         );
     }
 
-    // Input devices
-    #[cfg(feature = "input")]
-    root.add(
-        "input",
-        SimpleDir::new_maker(fs.clone(), Arc::new(event::input_devices(fs.clone()))),
-    );
+    // Input devices removed for minimal OS
+    // #[cfg(feature = "input")]
+    // root.add(
+    //     "input",
+    //     SimpleDir::new_maker(fs.clone(), Arc::new(event::input_devices(fs.clone()))),
+    // );
 
     SimpleDir::new_maker(fs, Arc::new(root))
 }
