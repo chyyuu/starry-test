@@ -1,3 +1,6 @@
+// Minimal memory mapping syscalls for ch18_file0
+// Only mmap and mprotect are needed
+
 use alloc::sync::Arc;
 
 use axerrno::{AxError, AxResult};
@@ -6,12 +9,11 @@ use axhal::paging::{MappingFlags, PageSize};
 use axmm::backend::{Backend, SharedPages};
 use axtask::current;
 use linux_raw_sys::general::*;
-use memory_addr::{MemoryAddr, VirtAddr, VirtAddrRange, align_up_4k};
+use memory_addr::{MemoryAddr, VirtAddr, VirtAddrRange};
 use starry_core::{
     task::AsThread,
     vfs::{Device, DeviceMmap},
 };
-use starry_vm::{vm_load, vm_write_slice};
 
 use crate::file::{File, FileLike};
 
@@ -249,16 +251,6 @@ pub fn sys_mmap(
     Ok(start.as_usize() as _)
 }
 
-pub fn sys_munmap(addr: usize, length: usize) -> AxResult<isize> {
-    debug!("sys_munmap <= addr: {addr:#x}, length: {length:x}");
-    let curr = current();
-    let mut aspace = curr.as_thread().proc_data.aspace.lock();
-    let length = align_up_4k(length);
-    let start_addr = VirtAddr::from(addr);
-    aspace.unmap(start_addr, length)?;
-    Ok(0)
-}
-
 pub fn sys_mprotect(addr: usize, length: usize, prot: u32) -> AxResult<isize> {
     // TODO: implement PROT_GROWSUP & PROT_GROWSDOWN
     let Some(permission_flags) = MmapProt::from_bits(prot) else {
@@ -272,66 +264,9 @@ pub fn sys_mprotect(addr: usize, length: usize, prot: u32) -> AxResult<isize> {
 
     let curr = current();
     let mut aspace = curr.as_thread().proc_data.aspace.lock();
-    let length = align_up_4k(length);
+    let length = memory_addr::align_up_4k(length);
     let start_addr = VirtAddr::from(addr);
     aspace.protect(start_addr, length, permission_flags.into())?;
 
-    Ok(0)
-}
-
-pub fn sys_mremap(addr: usize, old_size: usize, new_size: usize, flags: u32) -> AxResult<isize> {
-    debug!(
-        "sys_mremap <= addr: {addr:#x}, old_size: {old_size:x}, new_size: {new_size:x}, flags: \
-         {flags:#x}"
-    );
-
-    // TODO: full implementation
-
-    if !addr.is_multiple_of(PageSize::Size4K as usize) {
-        return Err(AxError::InvalidInput);
-    }
-    let addr = VirtAddr::from(addr);
-
-    let curr = current();
-    let aspace = curr.as_thread().proc_data.aspace.lock();
-    let old_size = align_up_4k(old_size);
-    let new_size = align_up_4k(new_size);
-
-    let flags = aspace.find_area(addr).ok_or(AxError::NoMemory)?.flags();
-    drop(aspace);
-    let new_addr = sys_mmap(
-        addr.as_usize(),
-        new_size,
-        flags.bits() as _,
-        MmapFlags::PRIVATE.bits(),
-        -1,
-        0,
-    )? as usize;
-
-    let copy_len = new_size.min(old_size);
-    let data = vm_load(addr.as_ptr(), copy_len)?;
-    vm_write_slice(new_addr as *mut u8, &data)?;
-
-    sys_munmap(addr.as_usize(), old_size)?;
-
-    Ok(new_addr as isize)
-}
-
-pub fn sys_madvise(addr: usize, length: usize, advice: i32) -> AxResult<isize> {
-    debug!("sys_madvise <= addr: {addr:#x}, length: {length:x}, advice: {advice:#x}");
-    Ok(0)
-}
-
-pub fn sys_msync(addr: usize, length: usize, flags: u32) -> AxResult<isize> {
-    debug!("sys_msync <= addr: {addr:#x}, length: {length:x}, flags: {flags:#x}");
-
-    Ok(0)
-}
-
-pub fn sys_mlock(addr: usize, length: usize) -> AxResult<isize> {
-    sys_mlock2(addr, length, 0)
-}
-
-pub fn sys_mlock2(_addr: usize, _length: usize, _flags: u32) -> AxResult<isize> {
     Ok(0)
 }

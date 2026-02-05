@@ -1,7 +1,9 @@
+// Minimal file descriptor operations for ch18_file0
+// Only openat, close, and fcntl are needed
+
 use alloc::{format, string::ToString, sync::Arc};
 use core::{
     ffi::{c_char, c_int},
-    mem,
     ops::{Deref, DerefMut},
 };
 
@@ -9,7 +11,6 @@ use axerrno::{AxError, AxResult};
 use axfs::{FS_CONTEXT, FileBackend, OpenOptions, OpenResult};
 use axfs_ng_vfs::{DirEntry, FileNode, Location, NodePermission, NodeType, Reference};
 use axtask::current;
-use bitflags::bitflags;
 use linux_raw_sys::general::*;
 use starry_core::{task::AsThread, vfs::Device};
 
@@ -109,11 +110,6 @@ fn add_to_fd(result: OpenResult, flags: u32) -> AxResult<i32> {
 }
 
 /// Open or create a file.
-/// fd: file descriptor
-/// filename: file path to be opened or created
-/// flags: open flags
-/// mode: see man 7 inode
-/// return new file descriptor if succeed, or return -1.
 pub fn sys_openat(
     dirfd: c_int,
     path: *const c_char,
@@ -131,108 +127,15 @@ pub fn sys_openat(
         .map(|fd| fd as isize)
 }
 
-/// Open a file by `filename` and insert it into the file descriptor table.
-///
-/// Return its index in the file table (`fd`). Return `EMFILE` if it already
-/// has the maximum number of files open.
-#[cfg(target_arch = "x86_64")]
-pub fn sys_open(path: *const c_char, flags: i32, mode: __kernel_mode_t) -> AxResult<isize> {
-    sys_openat(AT_FDCWD as _, path, flags, mode)
-}
-
 pub fn sys_close(fd: c_int) -> AxResult<isize> {
     debug!("sys_close <= {fd}");
     close_file_like(fd)?;
     Ok(0)
 }
 
-bitflags! {
-    #[derive(Debug, Clone, Copy)]
-    struct CloseRangeFlags: u32 {
-        const UNSHARE = 1 << 1;
-        const CLOEXEC = 1 << 2;
-    }
-}
-
-pub fn sys_close_range(first: i32, last: i32, flags: u32) -> AxResult<isize> {
-    if first < 0 || last < first {
-        return Err(AxError::InvalidInput);
-    }
-    let flags = CloseRangeFlags::from_bits(flags).ok_or(AxError::InvalidInput)?;
-    debug!("sys_close_range <= fds: [{first}, {last}], flags: {flags:?}");
-    if flags.contains(CloseRangeFlags::UNSHARE) {
-        // TODO: optimize
-        let curr = current();
-        let mut scope = curr.as_thread().proc_data.scope.write();
-        let mut guard = FD_TABLE.scope_mut(&mut scope);
-        let old_files = mem::take(guard.deref_mut());
-        old_files.write().clone_from(old_files.read().deref());
-    }
-
-    let cloexec = flags.contains(CloseRangeFlags::CLOEXEC);
-    let mut fd_table = FD_TABLE.write();
-    if let Some(max_index) = fd_table.ids().next_back() {
-        for fd in first..=last.min(max_index as i32) {
-            if cloexec {
-                if let Some(f) = fd_table.get_mut(fd as _) {
-                    f.cloexec = true;
-                }
-            } else {
-                fd_table.remove(fd as _);
-            }
-        }
-    }
-
-    Ok(0)
-}
-
 fn dup_fd(old_fd: c_int, cloexec: bool) -> AxResult<isize> {
     let f = get_file_like(old_fd)?;
     let new_fd = add_file_like(f, cloexec)?;
-    Ok(new_fd as _)
-}
-
-pub fn sys_dup(old_fd: c_int) -> AxResult<isize> {
-    debug!("sys_dup <= {old_fd}");
-    dup_fd(old_fd, false)
-}
-
-#[cfg(target_arch = "x86_64")]
-pub fn sys_dup2(old_fd: c_int, new_fd: c_int) -> AxResult<isize> {
-    if old_fd == new_fd {
-        get_file_like(new_fd)?;
-        return Ok(new_fd as _);
-    }
-    sys_dup3(old_fd, new_fd, 0)
-}
-
-bitflags::bitflags! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    struct Dup3Flags: c_int {
-        const O_CLOEXEC = O_CLOEXEC as _; // Close on exec
-    }
-}
-
-pub fn sys_dup3(old_fd: c_int, new_fd: c_int, flags: c_int) -> AxResult<isize> {
-    let flags = Dup3Flags::from_bits(flags).ok_or(AxError::InvalidInput)?;
-    debug!("sys_dup3 <= old_fd: {old_fd}, new_fd: {new_fd}, flags: {flags:?}");
-
-    if old_fd == new_fd {
-        return Err(AxError::InvalidInput);
-    }
-
-    let mut fd_table = FD_TABLE.write();
-    let mut f = fd_table
-        .get(old_fd as _)
-        .cloned()
-        .ok_or(AxError::BadFileDescriptor)?;
-    f.cloexec = flags.contains(Dup3Flags::O_CLOEXEC);
-
-    fd_table.remove(new_fd as _);
-    fd_table
-        .add_at(new_fd as _, f)
-        .map_err(|_| AxError::BadFileDescriptor)?;
-
     Ok(new_fd as _)
 }
 
@@ -303,10 +206,4 @@ pub fn sys_fcntl(fd: c_int, cmd: c_int, arg: usize) -> AxResult<isize> {
             Ok(0)
         }
     }
-}
-
-pub fn sys_flock(fd: c_int, operation: c_int) -> AxResult<isize> {
-    debug!("flock <= fd: {fd}, operation: {operation}");
-    // TODO: flock
-    Ok(0)
 }
