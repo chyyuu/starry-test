@@ -216,22 +216,43 @@ pub fn close_file_like(fd: c_int) -> AxResult {
 /// Simple stdout/stderr console replacement for minimal OS (no TTY needed)
 pub struct StdoutConsole;
 
+// Simple writer that outputs to console via warn! macro
+// Using warn! instead of info! so output is visible with default LOG=warn
+struct ConsoleWriter;
+
+impl core::fmt::Write for ConsoleWriter {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        // Output each line via the warn! macro to reach serial console
+        for line in s.lines() {
+            warn!("{}", line);
+        }
+        Ok(())
+    }
+}
+
 impl FileLike for StdoutConsole {
     fn read(&self, _dst: &mut IoDst) -> AxResult<usize> {
         Err(AxError::InvalidInput)
     }
 
     fn write(&self, src: &mut IoSrc) -> AxResult<usize> {
-        // For minimal OS with ch18_file0 (file I/O only), stdout write is a no-op
-        // But we must consume the data and return the written count
-        // to prevent infinite write loops
+        // Read data and output to console via warn! logging
         use axio::Read;
-        let mut buf = [0u8; 4096];
+        let mut buf = [0u8; 256];
         let mut total = 0;
+        let mut writer = ConsoleWriter;
+        
         loop {
             match src.read(&mut buf) {
                 Ok(0) => break,
-                Ok(n) => total += n,
+                Ok(n) => {
+                    total += n;
+                    // Try to convert to UTF-8 and output
+                    if let Ok(s) = core::str::from_utf8(&buf[..n]) {
+                        use core::fmt::Write;
+                        let _ = writer.write_str(s);
+                    }
+                }
                 Err(_) => break,
             }
         }
