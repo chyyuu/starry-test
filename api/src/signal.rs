@@ -40,27 +40,7 @@ pub fn check_signals(
     true
 }
 
-static BLOCK_NEXT_SIGNAL_CHECK: AtomicBool = AtomicBool::new(false);
-
-pub fn block_next_signal() {
-    BLOCK_NEXT_SIGNAL_CHECK.store(true, Ordering::SeqCst);
-}
-
 pub fn unblock_next_signal() -> bool {
+    static BLOCK_NEXT_SIGNAL_CHECK: AtomicBool = AtomicBool::new(false);
     BLOCK_NEXT_SIGNAL_CHECK.swap(false, Ordering::SeqCst)
-}
-
-pub fn with_replacen_blocked<R>(
-    blocked: Option<SignalSet>,
-    f: impl FnOnce() -> AxResult<R>,
-) -> AxResult<R> {
-    let curr = current();
-    let sig = &curr.as_thread().signal;
-
-    let old_blocked = blocked.map(|set| sig.set_blocked(set));
-    f().inspect(|_| {
-        if let Some(old) = old_blocked {
-            sig.set_blocked(old);
-        }
-    })
 }
