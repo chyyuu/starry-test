@@ -1,12 +1,11 @@
+// Minimal resource limit syscalls for ch18_file0
+// Only prlimit64 is needed
+
 use axerrno::{AxError, AxResult};
-use axhal::time::TimeValue;
-use axtask::current;
-use linux_raw_sys::general::{__kernel_old_timeval, RLIM_NLIMITS, rlimit64, rusage};
-use starry_core::task::{AsThread, Thread, get_process_data, get_task};
+use linux_raw_sys::general::{RLIM_NLIMITS, rlimit64};
+use starry_core::task::get_process_data;
 use starry_process::Pid;
 use starry_vm::{VmMutPtr, VmPtr};
-
-use crate::time::TimeValueLike;
 
 pub fn sys_prlimit64(
     pid: Pid,
@@ -45,80 +44,6 @@ pub fn sys_prlimit64(
 
         limit.current = new_limit.rlim_cur;
     }
-
-    Ok(0)
-}
-
-#[derive(Default)]
-struct Rusage {
-    utime: TimeValue,
-    stime: TimeValue,
-}
-
-impl Rusage {
-    fn from_thread(thread: &Thread) -> Self {
-        let (utime, stime) = thread.time.borrow().output();
-        Self { utime, stime }
-    }
-
-    fn collate(mut self, other: Rusage) -> Self {
-        self.utime += other.utime;
-        self.stime += other.stime;
-        self
-    }
-}
-
-impl From<Rusage> for rusage {
-    fn from(value: Rusage) -> Self {
-        // FIXME: Zeroable
-        let mut usage: rusage = unsafe { core::mem::zeroed() };
-        usage.ru_utime = __kernel_old_timeval::from_time_value(value.utime);
-        usage.ru_stime = __kernel_old_timeval::from_time_value(value.stime);
-        usage
-    }
-}
-
-pub fn sys_getrusage(who: i32, usage: *mut rusage) -> AxResult<isize> {
-    const RUSAGE_SELF: i32 = linux_raw_sys::general::RUSAGE_SELF as i32;
-    const RUSAGE_CHILDREN: i32 = linux_raw_sys::general::RUSAGE_CHILDREN;
-    const RUSAGE_THREAD: i32 = linux_raw_sys::general::RUSAGE_THREAD as i32;
-
-    let curr = current();
-    let thr = curr.as_thread();
-
-    let result = match who {
-        RUSAGE_SELF => {
-            thr.proc_data
-                .proc
-                .threads()
-                .into_iter()
-                .fold(Rusage::default(), |acc, tid| {
-                    if let Ok(task) = get_task(tid) {
-                        acc.collate(Rusage::from_thread(task.as_thread()))
-                    } else {
-                        acc
-                    }
-                })
-        }
-        RUSAGE_CHILDREN => {
-            thr.proc_data
-                .proc
-                .threads()
-                .into_iter()
-                .fold(Rusage::default(), |acc, child| {
-                    if let Ok(task) = get_task(child)
-                        && !curr.ptr_eq(&task)
-                    {
-                        acc.collate(Rusage::from_thread(task.as_thread()))
-                    } else {
-                        acc
-                    }
-                })
-        }
-        RUSAGE_THREAD => Rusage::from_thread(thr),
-        _ => return Err(AxError::InvalidInput),
-    };
-    usage.vm_write(result.into())?;
 
     Ok(0)
 }
