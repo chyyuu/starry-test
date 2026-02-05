@@ -3,6 +3,7 @@ export ARCH := riscv64
 export LOG := warn
 export DWARF := y
 export MEMTRACK := n
+export INIT_CMDLINE ?=
 
 # QEMU Options
 export BLK := y
